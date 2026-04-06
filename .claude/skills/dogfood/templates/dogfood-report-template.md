@@ -4,6 +4,7 @@
 |-------|-------|
 | **Date** | {DATE} |
 | **App URL** | {URL} |
+| **Session** | {SESSION_NAME} |
 | **Scope** | {SCOPE} |
 
 ## Summary
@@ -18,7 +19,7 @@
 
 ## Issues
 
-<!-- Copy this block for each issue found. Include a screenshot for every issue. -->
+<!-- Copy this block for each issue found. Interactive issues need video + step-by-step screenshots. Static issues (typos, visual glitches) only need a single screenshot -- set Repro Video to N/A. -->
 
 ### ISSUE-001: {Short title}
 
@@ -27,6 +28,7 @@
 | **Severity** | critical / high / medium / low |
 | **Category** | visual / functional / ux / content / performance / console / accessibility |
 | **URL** | {page URL where issue was found} |
+| **Repro Video** | {path to video, or N/A for static issues} |
 
 **Description**
 
