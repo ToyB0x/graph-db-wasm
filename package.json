@@ -7,7 +7,8 @@
     "postinstall": "cp node_modules/kuzu-wasm/web/kuzu_wasm_worker.js public/kuzu_wasm_worker.js",
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "cytoscape": "^3.33.1",
