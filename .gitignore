@@ -5,3 +5,4 @@ test-db.mjs
 test-seed.mjs
 public/kuzu_wasm_worker.js
 .playwright-cli/
+public/coi-serviceworker.js
