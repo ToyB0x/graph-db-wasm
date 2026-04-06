@@ -1,17 +1,17 @@
 # GraphDB WASM Preview
 
-LadybugDB (WASM) を使ったブラウザ内リアルタイムグラフDBクエリプレビューアプリ。
+A browser-based real-time graph database query preview app powered by LadybugDB (WASM).
 
-ネットワーク管理のグラフデータ (~100MB) をブラウザ内で生成・クエリできます。
+Generates and queries ~100MB of network infrastructure graph data entirely in the browser.
 
-参考: [network-management](https://github.com/ToyB0x/network-management)
+Reference: [network-management](https://github.com/ToyB0x/network-management)
 
 ## Tech Stack
 
 - React 19 + TypeScript
 - Vite
 - Tailwind CSS v4
-- LadybugDB WASM (in-memory graph database)
+- kuzu-wasm (in-memory graph database via WebAssembly)
 
 ## Getting Started
 
@@ -20,13 +20,13 @@ pnpm install
 pnpm dev
 ```
 
-1. ブラウザで http://localhost:5173 を開く
-2. 自動でDB初期化・シーディングが開始される
-3. 完了後、Cypherクエリを入力して実行
+1. Open http://localhost:5173 in your browser
+2. DB initialization and seeding starts automatically
+3. After completion, enter and execute Cypher queries
 
 ## Data Model
 
-ネットワークインフラのグラフ:
+Network infrastructure graph:
 
 - **DataCenter** → Router, Rack
 - **Router** → Network
@@ -36,18 +36,19 @@ pnpm dev
 - **Process** → SoftwareVersion, Port
 - **Software** → SoftwareVersion
 
-約43,000台のマシン、108,000のプロセスを含む ~100MB のグラフデータ。
+~43,000 machines and ~108,000 processes in ~100MB of graph data.
 
-## Note: kuzu-wasm alias
+## Note: kuzu-wasm dependency
 
-`package.json` で `"lbug-wasm": "npm:kuzu-wasm@0.11.3"` としてkuzu-wasmをlbug-wasmのエイリアスで使用しています。
+This project uses [`kuzu-wasm@0.11.3`](https://www.npmjs.com/package/kuzu-wasm) as its graph database engine. While [LadybugDB](https://ladybugdb.com/) is the intended target, the official npm package [`@lbug/lbug-wasm@0.13.1`](https://www.npmjs.com/package/@lbug/lbug-wasm) currently ships with a different API that is incompatible with this project's architecture:
 
-本来は公式パッケージ [`@lbug/lbug-wasm`](https://www.npmjs.com/package/@lbug/lbug-wasm) を使用すべきですが、以下の理由によりワークアラウンドとしてkuzu-wasmを利用しています:
+| Feature | kuzu-wasm (used) | @lbug/lbug-wasm |
+|---|---|---|
+| API style | Worker-based async API | Single-bundle Emscripten |
+| Query | `conn.query()` → `QueryResult` | `conn.execute()` → Apache Arrow Table |
+| Results | `getAllObjects()`, `getColumnNames()` | `table.toString()` (JSON) |
+| Filesystem | `kuzu.FS` (writeFile, mkdir, unlink) | Internal Emscripten FS (no public API) |
+| Worker | Separate file (`setWorkerPath`) | None (single-threaded) |
 
-1. **APIの非互換性**: `@lbug/lbug-wasm@0.13.1` は kuzu-wasm とは異なるAPIを提供している
-   - kuzu-wasm: Worker分離型の非同期API (`setWorkerPath`, `Database.init()`, `Connection.query()` → `QueryResult` with `getAllObjects()`, `getColumnNames()`, `isSuccess()` 等)
-   - @lbug/lbug-wasm: 単一バンドル型API (`lbug_wasm()` factory → `conn.execute()` → Apache Arrow Table)
-2. **Worker/FSの欠如**: `@lbug/lbug-wasm` のnpmパッケージにはWorkerファイルが含まれておらず、CSV COPY FROMによるバルクシーディングに必要な `FS` オブジェクトの公開APIも異なる
-3. **上流の修正待ち**: [LadybugDB/ladybug-wasm#7](https://github.com/LadybugDB/ladybug-wasm/pull/7) がマージ済みだが、kuzu-wasm互換の非同期APIを含む新バージョンがnpmにパブリッシュされていない
-
-上流パッケージが更新され次第、正式な `@lbug/lbug-wasm` への移行を検討します。
+The async worker-based API documented at [docs.ladybugdb.com](https://docs.ladybugdb.com/client-apis/wasm/) is not included in the current npm package.
+[LadybugDB/ladybug-wasm#7](https://github.com/LadybugDB/ladybug-wasm/pull/7) has been merged but not yet published. Once a compatible version is published, migration to `@lbug/lbug-wasm` should be straightforward as the async API is identical.

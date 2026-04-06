@@ -1,5 +1,5 @@
-import type { Connection } from "lbug-wasm";
-import type { FS as LbugFS } from "lbug-wasm";
+import type { Connection } from "kuzu-wasm";
+import type { FS as KuzuFS } from "kuzu-wasm";
 import { NODE_TABLE_STATEMENTS, REL_TABLE_STATEMENTS } from "./schema";
 import {
   generateDataCenterCSV,
@@ -39,7 +39,7 @@ const BATCH_SIZE = 10000;
 
 async function writeAndCopy(
   conn: Connection,
-  fs: LbugFS,
+  fs: KuzuFS,
   csvContent: string,
   tableName: string,
   filePath: string,
@@ -60,7 +60,7 @@ async function writeAndCopy(
 
 async function writeBatchesAndCopy<T extends { csv: string; count: number }>(
   conn: Connection,
-  fs: LbugFS,
+  fs: KuzuFS,
   generator: Generator<T>,
   tableName: string,
   basePath: string,
@@ -113,7 +113,7 @@ export async function createSchema(
 
 export async function seedData(
   conn: Connection,
-  fs: LbugFS,
+  fs: KuzuFS,
   onProgress: ProgressCallback,
 ): Promise<void> {
   const phases = [

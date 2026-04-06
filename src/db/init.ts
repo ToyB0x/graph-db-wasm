@@ -47,8 +47,8 @@ async function doInit(
 
     let version = "unknown";
     try {
-      const lbug = (await import("lbug-wasm")).default;
-      version = await lbug.getVersion();
+      const kuzu = (await import("kuzu-wasm")).default;
+      version = await kuzu.getVersion();
     } catch {
       // version not critical
     }
