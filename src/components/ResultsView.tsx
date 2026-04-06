@@ -67,6 +67,17 @@ function formatCell(value: unknown): string {
   if (value === null || value === undefined) return "NULL";
   if (typeof value === "bigint") return value.toString();
   if (typeof value === "object") {
+    const obj = value as Record<string, unknown>;
+    // Node objects: show label and key properties
+    if ("_label" in obj) {
+      const label = obj._label;
+      const name = obj.name ?? obj.id ?? obj.version;
+      return name != null ? `${label}: ${name}` : String(label);
+    }
+    // Relationship objects: show label only
+    if ("_src" in obj && "_dst" in obj) {
+      return obj._label ? String(obj._label) : "relationship";
+    }
     return JSON.stringify(value, (_k, v) =>
       typeof v === "bigint" ? v.toString() : v,
     );

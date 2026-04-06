@@ -81,9 +81,10 @@ const GRAPH_PRESETS: PresetQuery[] = [
 interface Props {
   onSelect: (preset: PresetQuery) => void;
   disabled: boolean;
+  activeQuery?: string;
 }
 
-export default function PresetQueries({ onSelect, disabled }: Props) {
+export default function PresetQueries({ onSelect, disabled, activeQuery }: Props) {
   return (
     <div className="space-y-4">
       <div className="space-y-1.5">
@@ -91,19 +92,26 @@ export default function PresetQueries({ onSelect, disabled }: Props) {
           Table Queries
         </p>
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
-          {TABLE_PRESETS.map((p) => (
-            <button
-              key={p.label}
-              onClick={() => onSelect(p)}
-              disabled={disabled}
-              className="rounded-lg border border-gray-700 bg-gray-800 p-2.5 text-left transition-colors hover:border-indigo-500 hover:bg-gray-800/80 disabled:opacity-40 cursor-pointer"
-            >
-              <p className="text-xs font-medium text-gray-200">{p.label}</p>
-              <p className="mt-0.5 text-xs text-gray-500 line-clamp-1">
-                {p.description}
-              </p>
-            </button>
-          ))}
+          {TABLE_PRESETS.map((p) => {
+            const isActive = activeQuery === p.query;
+            return (
+              <button
+                key={p.label}
+                onClick={() => onSelect(p)}
+                disabled={disabled}
+                className={`rounded-lg border p-2.5 text-left transition-colors disabled:opacity-40 cursor-pointer ${
+                  isActive
+                    ? "border-indigo-500 bg-indigo-950/40"
+                    : "border-gray-700 bg-gray-800 hover:border-indigo-500 hover:bg-gray-800/80"
+                }`}
+              >
+                <p className="text-xs font-medium text-gray-200">{p.label}</p>
+                <p className="mt-0.5 text-xs text-gray-500 line-clamp-1">
+                  {p.description}
+                </p>
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -112,19 +120,26 @@ export default function PresetQueries({ onSelect, disabled }: Props) {
           Graph Queries
         </p>
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
-          {GRAPH_PRESETS.map((p) => (
-            <button
-              key={p.label}
-              onClick={() => onSelect(p)}
-              disabled={disabled}
-              className="rounded-lg border border-emerald-800/50 bg-gray-800 p-2.5 text-left transition-colors hover:border-emerald-500 hover:bg-gray-800/80 disabled:opacity-40 cursor-pointer"
-            >
-              <p className="text-xs font-medium text-gray-200">{p.label}</p>
-              <p className="mt-0.5 text-xs text-gray-500 line-clamp-1">
-                {p.description}
-              </p>
-            </button>
-          ))}
+          {GRAPH_PRESETS.map((p) => {
+            const isActive = activeQuery === p.query;
+            return (
+              <button
+                key={p.label}
+                onClick={() => onSelect(p)}
+                disabled={disabled}
+                className={`rounded-lg border p-2.5 text-left transition-colors disabled:opacity-40 cursor-pointer ${
+                  isActive
+                    ? "border-emerald-500 bg-emerald-950/40"
+                    : "border-emerald-800/50 bg-gray-800 hover:border-emerald-500 hover:bg-gray-800/80"
+                }`}
+              >
+                <p className="text-xs font-medium text-gray-200">{p.label}</p>
+                <p className="mt-0.5 text-xs text-gray-500 line-clamp-1">
+                  {p.description}
+                </p>
+              </button>
+            );
+          })}
         </div>
       </div>
     </div>
