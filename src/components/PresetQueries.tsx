@@ -5,7 +5,6 @@ export interface PresetQuery {
   description: string;
   query: string;
   graph?: boolean;
-  highlight?: boolean;
 }
 
 const TABLE_PRESETS: PresetQuery[] = SAMPLE_QUERIES.map((q) => ({
@@ -14,11 +13,10 @@ const TABLE_PRESETS: PresetQuery[] = SAMPLE_QUERIES.map((q) => ({
   query: q.query,
 }));
 
-// Add Graph Statistics as highlighted query at the end
+// Add Graph Statistics query at the end
 TABLE_PRESETS.push({
   label: "Graph Statistics",
   description: "Total counts of all node and edge types",
-  highlight: true,
   query: `MATCH (n:DataCenter) WITH COUNT(n) AS DataCenter
 MATCH (n:Router) WITH DataCenter, COUNT(n) AS Router
 MATCH (n:Rack) WITH DataCenter, Router, COUNT(n) AS Rack
@@ -107,14 +105,9 @@ export default function PresetQueries({ onSelect, disabled }: Props) {
               key={p.label}
               onClick={() => onSelect(p)}
               disabled={disabled}
-              className={`rounded-lg border p-2.5 text-left transition-colors disabled:opacity-40 cursor-pointer ${
-                p.highlight
-                  ? "border-green-500/50 bg-green-500/10 hover:border-green-500 hover:bg-green-500/20"
-                  : "border-gray-700 bg-gray-800 hover:border-indigo-500 hover:bg-gray-800/80"
-              }`}
+              className="rounded-lg border border-gray-700 bg-gray-800 p-2.5 text-left transition-colors hover:border-indigo-500 hover:bg-gray-800/80 disabled:opacity-40 cursor-pointer"
             >
-              <p className={`text-xs font-medium ${p.highlight ? "text-green-400" : "text-gray-200"}`}>
-                {p.highlight && <span className="inline-block h-2 w-2 rounded-full bg-green-500 mr-1.5 align-middle" />}
+              <p className="text-xs font-medium text-gray-200">
                 {p.label}
               </p>
               <p className="mt-0.5 text-xs text-gray-500 line-clamp-1">

@@ -731,26 +731,50 @@ export function generateRouterRoutesNetworkCSV(): string {
 }
 
 export function getTotalCounts() {
-  const machines = NUM_DCS * ZONES_PER_DC * RACKS_PER_ZONE * MACHINES_PER_RACK;
-  const processes = machines * 2.5; // average
-  const interfaces = machines;
-  const ports = machines * 2;
-  const racks = NUM_DCS * ZONES_PER_DC * RACKS_PER_ZONE;
+  const dataCenters = NUM_DCS;
   const routers = NUM_DCS * (1 + ZONES_PER_DC);
+  const racks = NUM_DCS * ZONES_PER_DC * RACKS_PER_ZONE;
   const switches = racks;
   const networks = NUM_DCS * (1 + ZONES_PER_DC * (1 + RACKS_PER_ZONE));
-  return {
-    machines,
-    processes: Math.floor(processes),
-    interfaces,
-    ports,
-    racks,
-    routers,
-    switches,
-    networks,
-    software: SOFTWARE_LIST.length,
-    totalNodes: Math.floor(
-      machines + processes + interfaces + ports + racks + routers + switches + networks + SOFTWARE_LIST.length + 45
-    ),
-  };
+  const machines = NUM_DCS * ZONES_PER_DC * RACKS_PER_ZONE * MACHINES_PER_RACK;
+  const interfaces = machines;
+  const software = SOFTWARE_LIST.length;
+  const softwareVersions = SOFTWARE_LIST.reduce(
+    (sum, sw) => sum + SOFTWARE_VERSIONS[sw.name]!.length,
+    0,
+  );
+  const processes = machines * 2.5; // half have 2, half have 3
+  const ports = machines * 2;
+
+  const totalNodes = Math.floor(
+    dataCenters + routers + racks + switches + networks + machines +
+    interfaces + software + softwareVersions + processes + ports,
+  );
+
+  // Edge counts
+  const dcContainsRouter = routers;
+  const dcContainsRack = racks;
+  const rackHoldsSwitch = switches;
+  const rackHoldsMachine = machines;
+  const machineHasIface = machines;
+  const ifaceInNetwork = machines;
+  const ifaceHasPort = ports;
+  const machineRunsProcess = Math.floor(processes);
+  const processListensPort = machines; // first process per machine
+  const processUsesVersion = Math.floor(processes);
+  const softwareHasVersion = softwareVersions;
+  const routerRoutesNetwork = NUM_DCS * ZONES_PER_DC * (1 + RACKS_PER_ZONE);
+
+  const totalEdges =
+    dcContainsRouter + dcContainsRack + rackHoldsSwitch + rackHoldsMachine +
+    machineHasIface + ifaceInNetwork + ifaceHasPort + machineRunsProcess +
+    processListensPort + processUsesVersion + softwareHasVersion + routerRoutesNetwork;
+
+  // Rough size estimate
+  const estimatedSizeMB = Math.round(
+    (machines * 900 + Math.floor(processes) * 300 + interfaces * 50 +
+     ports * 40 + totalEdges * 40 + racks * 200) / 1_000_000,
+  );
+
+  return { totalNodes, totalEdges, estimatedSizeMB };
 }

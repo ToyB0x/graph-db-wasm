@@ -10,7 +10,7 @@ import ResultsView from "./components/ResultsView";
 import GraphView from "./components/GraphView";
 import { getTotalCounts } from "./db/factories";
 
-const { totalNodes } = getTotalCounts();
+const { totalNodes, totalEdges, estimatedSizeMB } = getTotalCounts();
 
 type ViewMode = "table" | "graph";
 
@@ -82,7 +82,8 @@ export default function App() {
             <h1 className="text-xl font-bold">GraphDB WASM Preview</h1>
             <p className="text-xs text-gray-500">
               LadybugDB running in-browser via WebAssembly &middot;{" "}
-              ~{totalNodes.toLocaleString()} nodes
+              {totalNodes.toLocaleString()} nodes &middot;{" "}
+              {totalEdges.toLocaleString()} edges &middot; ~{estimatedSizeMB} MB
             </p>
           </div>
           {isReady && (
