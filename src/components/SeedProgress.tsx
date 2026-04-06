@@ -13,12 +13,12 @@ export default function SeedProgress({ progress }: Props) {
           <span className="text-gray-300">
             {progress.phase}: {progress.detail}
           </span>
-          <span className="text-indigo-400 font-mono">{progress.pct}%</span>
+          <span className="text-indigo-400 font-mono">{progress.percent}%</span>
         </div>
         <div className="h-2 w-full rounded-full bg-gray-800 overflow-hidden">
           <div
             className="h-full rounded-full bg-indigo-500 transition-all duration-300"
-            style={{ width: `${progress.pct}%` }}
+            style={{ width: `${progress.percent}%` }}
           />
         </div>
       </div>

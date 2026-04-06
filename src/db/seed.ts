@@ -1,256 +1,253 @@
-// Seed orchestrator – creates schema, generates CSV data, bulk-loads via COPY FROM.
-
-import { query, getFS } from "./index";
-import { NODE_TABLES, REL_TABLES } from "./schema";
-import { SEED_CONFIG, TOTAL_RACKS, TOTAL_MACHINES } from "./config";
+import type { Connection } from "lbug-wasm";
+import type { FS as LbugFS } from "lbug-wasm";
+import { NODE_TABLE_STATEMENTS, REL_TABLE_STATEMENTS } from "./schema";
 import {
-  generateDataCenters,
-  generateRouters,
-  generateNetworkZones,
-  generateRacks,
-  generateSwitches,
-  generateMachineTypes,
-  generateMachinesCsvForRack,
-  rackMachineRelCsv,
-  machineTypeRelCsv,
-  MACHINE_CSV_HEADER,
-} from "./factories/infrastructure";
-import {
-  generateSoftware,
-  generateSoftwareCsv,
-  generatePorts,
-} from "./factories/software";
-import {
-  generateProcessesForMachines,
-  PROCESS_CSV_HEADER,
-} from "./factories/operations";
+  generateDataCenterCSV,
+  generateRouterCSV,
+  generateRackCSV,
+  generateSwitchCSV,
+  generateNetworkCSV,
+  generateSoftwareCSV,
+  generateSoftwareVersionCSV,
+  generateMachineCSVBatches,
+  generateInterfaceCSVBatches,
+  generateProcessCSVBatches,
+  generatePortCSVBatches,
+  generateDCContainsRouterCSV,
+  generateDCContainsRackCSV,
+  generateRackHoldsSwitchCSV,
+  generateRackHoldsMachineCSVBatches,
+  generateMachineHasIfaceCSVBatches,
+  generateIfaceInNetworkCSVBatches,
+  generateIfaceHasPortCSVBatches,
+  generateMachineRunsProcessCSVBatches,
+  generateProcessUsesVersionCSVBatches,
+  generateProcessListensPortCSVBatches,
+  generateSoftwareHasVersionCSV,
+  generateRouterRoutesNetworkCSV,
+} from "./factories";
 
 export type SeedProgress = {
   phase: string;
   detail: string;
-  pct: number;
+  percent: number;
 };
 
-type ProgressCb = (p: SeedProgress) => void;
+type ProgressCallback = (progress: SeedProgress) => void;
 
-// Helper to write a string to the WASM virtual filesystem
-async function writeVFS(path: string, data: string) {
-  const fs = getFS();
-  await fs.writeFile(path, data);
-}
+const BATCH_SIZE = 10000;
 
-// Ensure a directory exists in the WASM virtual filesystem
-async function mkdirVFS(path: string) {
-  const fs = getFS();
+async function writeAndCopy(
+  conn: Connection,
+  fs: LbugFS,
+  csvContent: string,
+  tableName: string,
+  filePath: string,
+): Promise<void> {
+  await fs.writeFile(filePath, csvContent);
+  const copyStmt = `COPY ${tableName} FROM '${filePath}' (HEADER=true)`;
+  const result = await conn.query(copyStmt);
+  if (!result.isSuccess()) {
+    const err = await result.getErrorMessage();
+    throw new Error(`COPY ${tableName} failed: ${err}`);
+  }
   try {
-    await fs.mkdir(path);
+    await fs.unlink(filePath);
   } catch {
-    // directory may already exist
+    // ignore cleanup errors
   }
 }
 
-export async function seedDatabase(onProgress: ProgressCb): Promise<void> {
-  const {
-    NUM_DATACENTERS,
-    ZONES_PER_DC,
-    RACKS_PER_ZONE,
-    MACHINES_PER_RACK,
-  } = SEED_CONFIG;
-
-  // ---- Phase 1: Schema ----
-  onProgress({ phase: "schema", detail: "Creating node tables…", pct: 0 });
-  for (const ddl of NODE_TABLES) await query(ddl);
-  for (const ddl of REL_TABLES) await query(ddl);
-  onProgress({ phase: "schema", detail: "Schema created", pct: 5 });
-
-  // ---- Phase 2: Small reference data (direct INSERT) ----
-  onProgress({ phase: "reference", detail: "Inserting reference data…", pct: 5 });
-
-  await mkdirVFS("/data");
-
-  const machineTypes = generateMachineTypes();
-  for (const mt of machineTypes) {
-    await query(
-      `CREATE (t:MachineType {id:${mt.id}, name:'${mt.name}', cpu:${mt.cpu}, ram:${mt.ram}, disk:${mt.disk}, typeName:'${mt.typeName}'})`,
-    );
+async function writeBatchesAndCopy<T extends { csv: string; count: number }>(
+  conn: Connection,
+  fs: LbugFS,
+  generator: Generator<T>,
+  tableName: string,
+  basePath: string,
+  onProgress?: (count: number) => void,
+): Promise<void> {
+  let batchIdx = 0;
+  for (const batch of generator) {
+    const filePath = `${basePath}_${batchIdx}.csv`;
+    await writeAndCopy(conn, fs, batch.csv, tableName, filePath);
+    onProgress?.(batch.count);
+    batchIdx++;
   }
+}
 
-  const dcs = generateDataCenters(NUM_DATACENTERS);
-  for (const dc of dcs) {
-    await query(
-      `CREATE (d:DataCenter {id:${dc.id}, name:'${dc.name}', location:'${dc.location}'})`,
-    );
-  }
+export async function createSchema(
+  conn: Connection,
+  onProgress: ProgressCallback,
+): Promise<void> {
+  const total = NODE_TABLE_STATEMENTS.length + REL_TABLE_STATEMENTS.length;
+  let done = 0;
 
-  const routers = generateRouters(dcs, ZONES_PER_DC);
-  for (const r of routers) {
-    await query(
-      `CREATE (r:Router {id:${r.id}, name:'${r.name}', zone:${r.zone}, isEgress:${r.isEgress}, ip:'${r.ip}'})`,
-    );
-    await query(
-      `MATCH (d:DataCenter), (r:Router) WHERE d.id = ${r.dcId} AND r.id = ${r.id} CREATE (d)-[:DC_CONTAINS_ROUTER]->(r)`,
-    );
-  }
-
-  const zones = generateNetworkZones(dcs, ZONES_PER_DC);
-  for (const nz of zones) {
-    await query(
-      `CREATE (n:NetworkZone {id:${nz.id}, ip:'${nz.ip}', size:${nz.size}, zone:${nz.zone}})`,
-    );
-    // connect zone router to network zone
-    const zoneRouter = routers.find(
-      (r) => r.dcId === nz.dcId && r.zone === nz.zone,
-    );
-    if (zoneRouter) {
-      await query(
-        `MATCH (r:Router), (n:NetworkZone) WHERE r.id = ${zoneRouter.id} AND n.id = ${nz.id} CREATE (r)-[:ROUTER_ROUTES]->(n)`,
-      );
-    }
-  }
-
-  const racks = generateRacks(dcs, zones, RACKS_PER_ZONE);
-  for (const rack of racks) {
-    await query(
-      `CREATE (k:Rack {id:${rack.id}, name:'${rack.name}', zone:${rack.zone}, rackNum:${rack.rackNum}})`,
-    );
-    await query(
-      `MATCH (d:DataCenter), (k:Rack) WHERE d.id = ${rack.dcId} AND k.id = ${rack.id} CREATE (d)-[:DC_CONTAINS_RACK]->(k)`,
-    );
-    await query(
-      `MATCH (n:NetworkZone), (k:Rack) WHERE n.id = ${rack.zoneId} AND k.id = ${rack.id} CREATE (n)-[:ZONE_HAS_RACK]->(k)`,
-    );
-  }
-
-  const switches = generateSwitches(racks);
-  for (const sw of switches) {
-    await query(
-      `CREATE (s:Switch {id:${sw.id}, ip:'${sw.ip}', rackId:${sw.rackId}})`,
-    );
-    await query(
-      `MATCH (k:Rack), (s:Switch) WHERE k.id = ${sw.rackId} AND s.id = ${sw.id} CREATE (k)-[:RACK_HOLDS_SWITCH]->(s)`,
-    );
-  }
-
-  const software = generateSoftware();
-  const swCsv = generateSoftwareCsv(software);
-  await writeVFS("/data/software.csv", swCsv);
-  await query(`COPY Software FROM '/data/software.csv' (HEADER=true)`);
-
-  const ports = generatePorts(software);
-  for (const p of ports) {
-    await query(`CREATE (p:Port {id:${p.id}, port:${p.port}})`);
-  }
-
-  onProgress({ phase: "reference", detail: "Reference data loaded", pct: 10 });
-
-  // ---- Phase 3: Bulk machine data (CSV + COPY) ----
-  onProgress({
-    phase: "machines",
-    detail: `Generating ${TOTAL_MACHINES.toLocaleString()} machines…`,
-    pct: 10,
-  });
-
-  // We process rack by rack and accumulate CSV chunks to write in batches
-  const BATCH_SIZE = 10; // racks per batch write
-  let machinesCsvChunks: string[] = [MACHINE_CSV_HEADER];
-  let rackMachineRelChunks: string[] = [];
-  let machineTypeRelChunks: string[] = [];
-  let allMachineIds: number[] = [];
-  let racksProcessed = 0;
-
-  for (let i = 0; i < racks.length; i++) {
-    const rack = racks[i];
-    const { csv, machineIds } = generateMachinesCsvForRack(
-      rack,
-      MACHINES_PER_RACK,
-      machineTypes,
-    );
-    machinesCsvChunks.push(csv);
-    rackMachineRelChunks.push(rackMachineRelCsv(rack.id, machineIds));
-    machineTypeRelChunks.push(
-      machineTypeRelCsv(machineIds, MACHINES_PER_RACK, machineTypes),
-    );
-    allMachineIds.push(...machineIds);
-    racksProcessed++;
-
-    if (racksProcessed % BATCH_SIZE === 0 || i === racks.length - 1) {
-      const pct = 10 + Math.round((racksProcessed / TOTAL_RACKS) * 30);
-      onProgress({
-        phase: "machines",
-        detail: `Racks ${racksProcessed}/${TOTAL_RACKS}`,
-        pct,
-      });
-    }
-  }
-
-  // Write machine CSV and COPY
-  onProgress({ phase: "machines", detail: "Loading machines into DB…", pct: 40 });
-  await writeVFS("/data/machines.csv", machinesCsvChunks.join("\n"));
-  await query(`COPY Machine FROM '/data/machines.csv' (HEADER=true)`);
-
-  // Machine relationships
-  onProgress({ phase: "machines", detail: "Loading machine relationships…", pct: 45 });
-  await writeVFS(
-    "/data/rack_machine.csv",
-    rackMachineRelChunks.join("\n"),
-  );
-  await query(`COPY RACK_HOLDS_MACHINE FROM '/data/rack_machine.csv'`);
-
-  await writeVFS(
-    "/data/machine_type.csv",
-    machineTypeRelChunks.join("\n"),
-  );
-  await query(`COPY MACHINE_TYPE FROM '/data/machine_type.csv'`);
-
-  onProgress({ phase: "machines", detail: "Machines loaded", pct: 50 });
-
-  // ---- Phase 4: Processes ----
-  onProgress({
-    phase: "processes",
-    detail: "Generating processes…",
-    pct: 50,
-  });
-
-  // Process in chunks to avoid memory spikes
-  const PROC_CHUNK = 5000;
-  const procCsvParts: string[] = [PROCESS_CSV_HEADER];
-  const machRunsParts: string[] = [];
-  const procInstParts: string[] = [];
-  const procDepParts: string[] = [];
-  const procListenParts: string[] = [];
-
-  for (let start = 0; start < allMachineIds.length; start += PROC_CHUNK) {
-    const chunk = allMachineIds.slice(start, start + PROC_CHUNK);
-    const result = generateProcessesForMachines(chunk, software, ports);
-    procCsvParts.push(result.processCsv);
-    machRunsParts.push(result.machineRunsRelCsv);
-    procInstParts.push(result.processInstanceRelCsv);
-    procDepParts.push(result.processDependsRelCsv);
-    procListenParts.push(result.processListensRelCsv);
-
-    const pct = 50 + Math.round(((start + chunk.length) / allMachineIds.length) * 30);
+  for (const stmt of NODE_TABLE_STATEMENTS) {
     onProgress({
-      phase: "processes",
-      detail: `Processes ${Math.min(start + PROC_CHUNK, allMachineIds.length).toLocaleString()}/${allMachineIds.length.toLocaleString()}`,
-      pct,
+      phase: "Schema",
+      detail: `Creating node table ${done + 1}/${NODE_TABLE_STATEMENTS.length}`,
+      percent: (done / total) * 100,
     });
+    const result = await conn.query(stmt);
+    if (!result.isSuccess()) {
+      const err = await result.getErrorMessage();
+      throw new Error(`Schema error: ${err}\nStatement: ${stmt}`);
+    }
+    done++;
   }
 
-  onProgress({ phase: "processes", detail: "Loading processes into DB…", pct: 80 });
-  await writeVFS("/data/processes.csv", procCsvParts.join("\n"));
-  await query(`COPY Process FROM '/data/processes.csv' (HEADER=true)`);
+  for (const stmt of REL_TABLE_STATEMENTS) {
+    onProgress({
+      phase: "Schema",
+      detail: `Creating rel table ${done - NODE_TABLE_STATEMENTS.length + 1}/${REL_TABLE_STATEMENTS.length}`,
+      percent: (done / total) * 100,
+    });
+    const result = await conn.query(stmt);
+    if (!result.isSuccess()) {
+      const err = await result.getErrorMessage();
+      throw new Error(`Schema error: ${err}\nStatement: ${stmt}`);
+    }
+    done++;
+  }
+}
 
-  await writeVFS("/data/machine_runs.csv", machRunsParts.join("\n"));
-  await query(`COPY MACHINE_RUNS FROM '/data/machine_runs.csv'`);
+export async function seedData(
+  conn: Connection,
+  fs: LbugFS,
+  onProgress: ProgressCallback,
+): Promise<void> {
+  const phases = [
+    "DataCenter",
+    "Router",
+    "Rack",
+    "Switch",
+    "Network",
+    "Software",
+    "SoftwareVersion",
+    "Machine",
+    "Interface",
+    "Process",
+    "Port",
+    "Relationships",
+  ];
+  let phaseIdx = 0;
+  const totalPhases = phases.length;
 
-  await writeVFS("/data/proc_instance.csv", procInstParts.join("\n"));
-  await query(`COPY PROCESS_INSTANCE FROM '/data/proc_instance.csv'`);
+  const report = (detail: string) => {
+    onProgress({
+      phase: `Seeding ${phases[phaseIdx]}`,
+      detail,
+      percent: (phaseIdx / totalPhases) * 100,
+    });
+  };
 
-  await writeVFS("/data/proc_depends.csv", procDepParts.join("\n"));
-  await query(`COPY PROCESS_DEPENDS FROM '/data/proc_depends.csv'`);
+  try {
+    await fs.mkdir("/data");
+  } catch {
+    // Directory may already exist
+  }
 
-  await writeVFS("/data/proc_listens.csv", procListenParts.join("\n"));
-  await query(`COPY PROCESS_LISTENS FROM '/data/proc_listens.csv'`);
+  report("Generating data centers...");
+  await writeAndCopy(conn, fs, generateDataCenterCSV(), "DataCenter", "/data/dc.csv");
+  phaseIdx++;
 
-  onProgress({ phase: "done", detail: "Seeding complete!", pct: 100 });
+  report("Generating routers...");
+  await writeAndCopy(conn, fs, generateRouterCSV(), "Router", "/data/router.csv");
+  phaseIdx++;
+
+  report("Generating racks...");
+  await writeAndCopy(conn, fs, generateRackCSV(), "Rack", "/data/rack.csv");
+  phaseIdx++;
+
+  report("Generating switches...");
+  await writeAndCopy(conn, fs, generateSwitchCSV(), "Switch", "/data/switch.csv");
+  phaseIdx++;
+
+  report("Generating networks...");
+  await writeAndCopy(conn, fs, generateNetworkCSV(), "Network", "/data/network.csv");
+  phaseIdx++;
+
+  report("Generating software...");
+  await writeAndCopy(conn, fs, generateSoftwareCSV(), "Software", "/data/software.csv");
+  phaseIdx++;
+
+  report("Generating software versions...");
+  await writeAndCopy(conn, fs, generateSoftwareVersionCSV(), "SoftwareVersion", "/data/swver.csv");
+  phaseIdx++;
+
+  // Large tables — batched
+  report("Generating machines (batched)...");
+  await writeBatchesAndCopy(
+    conn, fs, generateMachineCSVBatches(BATCH_SIZE),
+    "Machine", "/data/machine",
+    (count) => report(`Machines: ${count.toLocaleString()} loaded`),
+  );
+  phaseIdx++;
+
+  report("Generating interfaces (batched)...");
+  await writeBatchesAndCopy(
+    conn, fs, generateInterfaceCSVBatches(BATCH_SIZE),
+    "Interface", "/data/iface",
+    (count) => report(`Interfaces: ${count.toLocaleString()} loaded`),
+  );
+  phaseIdx++;
+
+  report("Generating processes (batched)...");
+  await writeBatchesAndCopy(
+    conn, fs, generateProcessCSVBatches(BATCH_SIZE),
+    "Process", "/data/proc",
+    (count) => report(`Processes: ${count.toLocaleString()} loaded`),
+  );
+  phaseIdx++;
+
+  report("Generating ports (batched)...");
+  await writeBatchesAndCopy(
+    conn, fs, generatePortCSVBatches(BATCH_SIZE),
+    "Port", "/data/port",
+    (count) => report(`Ports: ${count.toLocaleString()} loaded`),
+  );
+  phaseIdx++;
+
+  // Relationships
+  report("Loading relationships...");
+  const relSteps = [
+    { gen: () => generateDCContainsRouterCSV(), table: "DC_CONTAINS_ROUTER", file: "/data/rel_dc_router.csv" },
+    { gen: () => generateDCContainsRackCSV(), table: "DC_CONTAINS_RACK", file: "/data/rel_dc_rack.csv" },
+    { gen: () => generateRackHoldsSwitchCSV(), table: "RACK_HOLDS_SWITCH", file: "/data/rel_rack_sw.csv" },
+    { gen: () => generateSoftwareHasVersionCSV(), table: "SOFTWARE_HAS_VERSION", file: "/data/rel_sw_ver.csv" },
+    { gen: () => generateRouterRoutesNetworkCSV(), table: "ROUTER_ROUTES_NETWORK", file: "/data/rel_router_net.csv" },
+  ] as const;
+
+  for (const step of relSteps) {
+    report(`${step.table}...`);
+    await writeAndCopy(conn, fs, (step.gen as () => string)(), step.table, step.file);
+  }
+
+  // Batched relationships
+  const batchedRels = [
+    { gen: () => generateRackHoldsMachineCSVBatches(BATCH_SIZE), table: "RACK_HOLDS_MACHINE", base: "/data/rel_rack_m" },
+    { gen: () => generateMachineHasIfaceCSVBatches(BATCH_SIZE), table: "MACHINE_HAS_IFACE", base: "/data/rel_m_if" },
+    { gen: () => generateIfaceInNetworkCSVBatches(BATCH_SIZE), table: "IFACE_IN_NETWORK", base: "/data/rel_if_net" },
+    { gen: () => generateIfaceHasPortCSVBatches(BATCH_SIZE), table: "IFACE_HAS_PORT", base: "/data/rel_if_port" },
+    { gen: () => generateMachineRunsProcessCSVBatches(BATCH_SIZE), table: "MACHINE_RUNS_PROCESS", base: "/data/rel_m_proc" },
+    { gen: () => generateProcessUsesVersionCSVBatches(BATCH_SIZE), table: "PROCESS_USES_VERSION", base: "/data/rel_proc_ver" },
+    { gen: () => generateProcessListensPortCSVBatches(BATCH_SIZE), table: "PROCESS_LISTENS_PORT", base: "/data/rel_proc_port" },
+  ] as const;
+
+  for (const step of batchedRels) {
+    report(`${step.table}...`);
+    await writeBatchesAndCopy(
+      conn, fs, (step.gen as () => Generator<{ csv: string; count: number }>)(),
+      step.table, step.base,
+      (count) => report(`${step.table}: ${count.toLocaleString()} loaded`),
+    );
+  }
+
+  try {
+    await fs.rmdir("/data");
+  } catch {
+    // ignore
+  }
+
+  onProgress({ phase: "Done", detail: "Seeding complete", percent: 100 });
 }

@@ -5,12 +5,13 @@ import type { GraphData, GraphNode } from "../db/graphExtractor";
 const NODE_COLORS: Record<string, string> = {
   DataCenter: "#6366f1",
   Router: "#f59e0b",
-  NetworkZone: "#10b981",
+  Network: "#10b981",
   Rack: "#8b5cf6",
   Switch: "#ec4899",
   Machine: "#3b82f6",
-  MachineType: "#14b8a6",
+  Interface: "#14b8a6",
   Software: "#f97316",
+  SoftwareVersion: "#a855f7",
   Process: "#22c55e",
   Port: "#ef4444",
 };
