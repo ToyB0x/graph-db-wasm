@@ -157,16 +157,14 @@ export default function GraphView({ graphData, queryTime }: Props) {
         </div>
       </div>
 
-      <div className="flex gap-3">
-        <div className="flex-1 relative">
-          <div
-            ref={containerRef}
-            className="h-[500px] rounded-lg border border-gray-700 bg-gray-900"
-          />
-        </div>
+      <div className="relative">
+        <div
+          ref={containerRef}
+          className="h-[500px] rounded-lg border border-gray-700 bg-gray-900"
+        />
 
         {selected && (
-          <div className="w-64 rounded-lg border border-gray-700 bg-gray-900 p-3 overflow-auto max-h-[500px]">
+          <div className="absolute top-2 right-2 w-64 rounded-lg border border-gray-700 bg-gray-900/95 backdrop-blur p-3 overflow-auto max-h-[470px]">
             <div className="flex items-center justify-between mb-2">
               <span
                 className="inline-block rounded px-1.5 py-0.5 text-xs font-medium text-white"
