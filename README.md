@@ -52,3 +52,13 @@ This project uses [`kuzu-wasm@0.11.3`](https://www.npmjs.com/package/kuzu-wasm) 
 
 The async worker-based API documented at [docs.ladybugdb.com](https://docs.ladybugdb.com/client-apis/wasm/) is not included in the current npm package.
 [LadybugDB/ladybug-wasm#7](https://github.com/LadybugDB/ladybug-wasm/pull/7) has been merged but not yet published. Once a compatible version is published, migration to `@lbug/lbug-wasm` should be straightforward as the async API is identical.
+
+## Security
+
+This application is a **front-end only sample application** with no backend server, authentication, or external API communication. All data is synthetic and generated in-memory on each browser session. As such, heavyweight security measures (WAF, CSRF tokens, rate limiting, etc.) are not applicable.
+
+### Security Review History
+
+| Date | Scope | Result | Reference |
+|---|---|---|---|
+| 2026-04-07 | Full codebase review | No vulnerabilities found | [#12](https://github.com/ToyB0x/graph-db-wasm/pull/12) |
