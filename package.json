@@ -24,6 +24,7 @@
     "coi-serviceworker": "0.1.7",
     "tailwindcss": "4.2.2",
     "typescript": "5.9.3",
+    "@playwright/cli": "0.1.5",
     "vite": "6.4.2"
   }
 }
