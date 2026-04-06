@@ -9,7 +9,7 @@ export async function initDatabase(): Promise<void> {
   if (db) return;
   // Set the worker path before any other calls.
   // The worker file is served from public/.
-  lbug.setWorkerPath("/kuzu_wasm_worker.js");
+  lbug.setWorkerPath(import.meta.env.BASE_URL + "kuzu_wasm_worker.js");
   db = new lbug.Database(":memory:", 1 << 28 /* 256 MB buffer */);
   await db.init();
   conn = new lbug.Connection(db);
