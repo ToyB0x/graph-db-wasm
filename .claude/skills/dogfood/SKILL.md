@@ -51,7 +51,9 @@ Start a named session:
 
 ```bash
 playwright-cli -s {SESSION} open {TARGET_URL}
-playwright-cli -s {SESSION} wait --load networkidle
+# Wait for the page to load by taking a snapshot (no separate wait command)
+sleep 2
+playwright-cli -s {SESSION} snapshot
 ```
 
 ### 2. Authenticate
@@ -59,12 +61,13 @@ playwright-cli -s {SESSION} wait --load networkidle
 If the app requires login:
 
 ```bash
-playwright-cli -s {SESSION} snapshot -i
-# Identify login form refs, fill credentials
-playwright-cli -s {SESSION} fill @e1 "{EMAIL}"
-playwright-cli -s {SESSION} fill @e2 "{PASSWORD}"
-playwright-cli -s {SESSION} click @e3
-playwright-cli -s {SESSION} wait --load networkidle
+playwright-cli -s {SESSION} snapshot
+# Identify login form element refs (e.g., e1, e2, e3), fill credentials
+playwright-cli -s {SESSION} fill e1 "{EMAIL}"
+playwright-cli -s {SESSION} fill e2 "{PASSWORD}"
+playwright-cli -s {SESSION} click e3
+sleep 2
+playwright-cli -s {SESSION} snapshot
 ```
 
 For OTP/email codes: ask the user, wait for their response, then enter the code.
@@ -72,7 +75,7 @@ For OTP/email codes: ask the user, wait for their response, then enter the code.
 After successful login, save state for potential reuse:
 
 ```bash
-playwright-cli -s {SESSION} state save {OUTPUT_DIR}/auth-state.json
+playwright-cli -s {SESSION} state-save {OUTPUT_DIR}/auth-state.json
 ```
 
 ### 3. Orient
@@ -80,8 +83,8 @@ playwright-cli -s {SESSION} state save {OUTPUT_DIR}/auth-state.json
 Take an initial screenshot and snapshot to understand the app structure:
 
 ```bash
-playwright-cli -s {SESSION} screenshot {OUTPUT_DIR}/screenshots/initial.png
-playwright-cli -s {SESSION} snapshot -i
+playwright-cli -s {SESSION} screenshot --filename {OUTPUT_DIR}/screenshots/initial.png
+playwright-cli -s {SESSION} snapshot
 ```
 
 Identify the main navigation elements and map out the sections to visit.
@@ -101,8 +104,8 @@ Read [references/issue-taxonomy.md](references/issue-taxonomy.md) for the full l
 **At each page:**
 
 ```bash
-playwright-cli -s {SESSION} snapshot -i
-playwright-cli -s {SESSION} screenshot {OUTPUT_DIR}/screenshots/{page-name}.png
+playwright-cli -s {SESSION} snapshot
+playwright-cli -s {SESSION} screenshot --filename {OUTPUT_DIR}/screenshots/{page-name}.png
 playwright-cli -s {SESSION} console
 ```
 
@@ -123,17 +126,17 @@ These require user interaction to reproduce -- use full repro with video and ste
 1. **Start a repro video** _before_ reproducing:
 
 ```bash
-playwright-cli -s {SESSION} record start {OUTPUT_DIR}/videos/issue-{NNN}-repro.webm
+playwright-cli -s {SESSION} video-start --filename {OUTPUT_DIR}/videos/issue-{NNN}-repro.webm
 ```
 
 2. **Walk through the steps at human pace.** Pause 1-2 seconds between actions so the video is watchable. Take a screenshot at each step:
 
 ```bash
-playwright-cli -s {SESSION} screenshot {OUTPUT_DIR}/screenshots/issue-{NNN}-step-1.png
+playwright-cli -s {SESSION} screenshot --filename {OUTPUT_DIR}/screenshots/issue-{NNN}-step-1.png
 sleep 1
 # Perform action (click, fill, etc.)
 sleep 1
-playwright-cli -s {SESSION} screenshot {OUTPUT_DIR}/screenshots/issue-{NNN}-step-2.png
+playwright-cli -s {SESSION} screenshot --filename {OUTPUT_DIR}/screenshots/issue-{NNN}-step-2.png
 sleep 1
 # ...continue until the issue manifests
 ```
@@ -142,13 +145,13 @@ sleep 1
 
 ```bash
 sleep 2
-playwright-cli -s {SESSION} screenshot {OUTPUT_DIR}/screenshots/issue-{NNN}-result.png
+playwright-cli -s {SESSION} screenshot --filename {OUTPUT_DIR}/screenshots/issue-{NNN}-result.png
 ```
 
 4. **Stop the video:**
 
 ```bash
-playwright-cli -s {SESSION} record stop
+playwright-cli -s {SESSION} video-stop
 ```
 
 5. Write numbered repro steps in the report, each referencing its screenshot.
@@ -158,7 +161,7 @@ playwright-cli -s {SESSION} record stop
 These are visible without interaction -- a single screenshot is sufficient. No video, no multi-step repro:
 
 ```bash
-playwright-cli -s {SESSION} screenshot {OUTPUT_DIR}/screenshots/issue-{NNN}.png
+playwright-cli -s {SESSION} screenshot --filename {OUTPUT_DIR}/screenshots/issue-{NNN}.png
 ```
 
 Write a brief description and reference the screenshot in the report. Set **Repro Video** to `N/A`.
@@ -193,9 +196,7 @@ playwright-cli -s {SESSION} close
 - **Don't record video for static issues.** A typo or clipped text doesn't benefit from a video. Save video for issues that involve user interaction, timing, or state changes.
 - **For interactive issues, screenshot each step.** Capture the before, the action, and the after -- so someone can see the full sequence.
 - **Write repro steps that map to screenshots.** Each numbered step in the report should reference its corresponding screenshot. A reader should be able to follow the steps visually without touching a browser.
-- **Use the right snapshot command.**
-  - `snapshot -i` — for finding clickable/fillable elements (buttons, inputs, links)
-  - `snapshot` (no flag) — for reading page content (text, headings, data lists)
+- **Use `snapshot` to inspect the page.** The snapshot command returns a structured tree of elements with refs (e.g., `e1`, `e2`) that can be used with `click`, `fill`, etc. Use bare refs like `e1` (not `@e1`).
 - **Be thorough but use judgment.** You are not following a test script -- you are exploring like a real user would. If something feels off, investigate.
 - **Write findings incrementally.** Append each issue to the report as you discover it. If the session is interrupted, findings are preserved. Never batch all issues for the end.
 - **Never delete output files.** Do not `rm` screenshots, videos, or the report mid-session. Do not close the session and restart. Work forward, not backward.
@@ -204,7 +205,7 @@ playwright-cli -s {SESSION} close
 - **Test like a user, not a robot.** Try common workflows end-to-end. Click things a real user would click. Enter realistic data.
 - **Type like a human.** When filling form fields during video recording, use `type` instead of `fill` -- it types character-by-character. Use `fill` only outside of video recording when speed matters.
 - **Pace repro videos for humans.** Add `sleep 1` between actions and `sleep 2` before the final result screenshot. Videos should be watchable at 1x speed -- a human reviewing the report needs to see what happened, not a blur of instant state changes.
-- **Be efficient with commands.** Batch multiple `playwright-cli` commands in a single shell call when they are independent (e.g., `playwright-cli ... screenshot ... && playwright-cli ... console`). Use `playwright-cli -s {SESSION} scroll down 300` for scrolling -- do not use `key` or `evaluate` to scroll.
+- **Be efficient with commands.** Batch multiple `playwright-cli` commands in a single shell call when they are independent (e.g., `playwright-cli ... screenshot ... && playwright-cli ... console`). Use `playwright-cli -s {SESSION} mousewheel 0 300` for scrolling down (or negative values for up).
 
 ## References
 

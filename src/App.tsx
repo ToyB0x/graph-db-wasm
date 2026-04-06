@@ -117,7 +117,7 @@ export default function App() {
 
         {dbState.status === "ready" && (
           <div className="flex flex-col gap-6">
-            <PresetQueries onSelect={handlePreset} disabled={isRunning} />
+            <PresetQueries onSelect={handlePreset} disabled={isRunning} activeQuery={queryText} />
             <QueryEditor
               value={queryText}
               onChange={setQueryText}
