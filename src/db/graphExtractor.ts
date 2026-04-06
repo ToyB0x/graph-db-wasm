@@ -141,6 +141,8 @@ export function extractGraphData(rows: Record<string, unknown>[]): GraphData {
   };
 }
 
+export const EMPTY_GRAPH: GraphData = { nodes: [], edges: [], truncated: false };
+
 export function hasGraphData(data: GraphData): boolean {
   return data.nodes.length > 0;
 }

@@ -1,4 +1,3 @@
-// Scale constants — tune these to reach ~100MB total DB size
 const NUM_DCS = 3;
 const ZONES_PER_DC = 4;
 const RACKS_PER_ZONE = 12;
@@ -88,51 +87,64 @@ function pick<T>(arr: readonly T[], index: number): T {
   return arr[index % arr.length]!;
 }
 
+function machineSeed(dc: number, z: number, r: number, m: number): number {
+  return dc * 100000 + z * 10000 + r * 1000 + m;
+}
+
+function numProcesses(seed: number): number {
+  return 2 + (seed % 2);
+}
+
+function* batchedRelCSV(
+  batchSize: number,
+  rowFn: (dc: number, z: number, r: number, m: number) => string[],
+): Generator<{ csv: string; count: number }> {
+  const header = "from,to";
+  let batch: string[] = [header];
+  let count = 0;
+  for (let dc = 0; dc < NUM_DCS; dc++) {
+    for (let z = 0; z < ZONES_PER_DC; z++) {
+      for (let r = 0; r < RACKS_PER_ZONE; r++) {
+        for (let m = 0; m < MACHINES_PER_RACK; m++) {
+          for (const row of rowFn(dc, z, r, m)) {
+            batch.push(row);
+            count++;
+            if (count % batchSize === 0) {
+              yield { csv: batch.join("\n"), count };
+              batch = [header];
+            }
+          }
+        }
+      }
+    }
+  }
+  if (batch.length > 1) yield { csv: batch.join("\n"), count };
+}
+
+const ROLES = [
+  "web-server", "api-server", "db-primary", "db-replica", "cache",
+  "worker", "scheduler", "gateway", "monitoring", "logging",
+  "ci-runner", "build-agent",
+];
+const ENVS = ["production", "staging", "development", "testing"];
+const TEAMS = [
+  "platform", "backend", "frontend", "data",
+  "infra", "security", "sre", "devops",
+];
+const COMPLIANCE_OPTIONS = ["SOC2", "HIPAA", "PCI-DSS", "ISO27001", "GDPR", "FedRAMP"];
+
 function generateMetadata(
   dcIdx: number,
   zoneIdx: number,
   rackIdx: number,
   machineIdx: number
 ): string {
-  const roles = [
-    "web-server",
-    "api-server",
-    "db-primary",
-    "db-replica",
-    "cache",
-    "worker",
-    "scheduler",
-    "gateway",
-    "monitoring",
-    "logging",
-    "ci-runner",
-    "build-agent",
-  ];
-  const envs = ["production", "staging", "development", "testing"];
-  const teams = [
-    "platform",
-    "backend",
-    "frontend",
-    "data",
-    "infra",
-    "security",
-    "sre",
-    "devops",
-  ];
-  const complianceOptions = [
-    "SOC2",
-    "HIPAA",
-    "PCI-DSS",
-    "ISO27001",
-    "GDPR",
-    "FedRAMP",
-  ];
-  const seed = dcIdx * 100000 + zoneIdx * 10000 + rackIdx * 1000 + machineIdx;
-  const role = pick(roles, seed);
-  const env = pick(envs, seed + 1);
-  const team = pick(teams, seed + 2);
-  const comp1 = pick(complianceOptions, seed + 3);
-  const comp2 = pick(complianceOptions, seed + 5);
+  const seed = machineSeed(dcIdx, zoneIdx, rackIdx, machineIdx);
+  const role = pick(ROLES, seed);
+  const env = pick(ENVS, seed + 1);
+  const team = pick(TEAMS, seed + 2);
+  const comp1 = pick(COMPLIANCE_OPTIONS, seed + 3);
+  const comp2 = pick(COMPLIANCE_OPTIONS, seed + 5);
   const powerWatts = 200 + (seed % 800);
   const rackUnit = 1 + (machineIdx % 42);
   return JSON.stringify({
@@ -177,12 +189,6 @@ function generateMetadata(
     notes: `Machine ${machineIdx + 1} in rack ${rackIdx + 1} zone ${zoneIdx + 1} DC${dcIdx + 1}. Allocated for ${role} workloads in ${env} environment. Managed by ${team} team. Power consumption ${powerWatts}W. Last hardware check passed successfully with no issues reported. Scheduled for next maintenance cycle Q${1 + (seed % 4)} 2025.`,
   });
 }
-
-export type SeedProgress = {
-  phase: string;
-  detail: string;
-  percent: number;
-};
 
 export function generateDataCenterCSV(): string {
   const rows = ["name,location,description"];
@@ -294,7 +300,6 @@ export function generateSoftwareVersionCSV(): string {
   return rows.join("\n");
 }
 
-// Generate machines in batches to avoid huge strings
 export function* generateMachineCSVBatches(
   batchSize: number
 ): Generator<{ csv: string; count: number; total: number }> {
@@ -393,9 +398,9 @@ export function* generateProcessCSVBatches(
     for (let z = 0; z < ZONES_PER_DC; z++) {
       for (let r = 0; r < RACKS_PER_ZONE; r++) {
         for (let m = 0; m < MACHINES_PER_RACK; m++) {
-          const seed = dc * 100000 + z * 10000 + r * 1000 + m;
-          const numProcs = 2 + (seed % 2); // 2 or 3
-          for (let p = 0; p < numProcs; p++) {
+          const seed = machineSeed(dc, z, r, m);
+          const nProcs = numProcesses(seed);
+          for (let p = 0; p < nProcs; p++) {
             const tmpl = pick(processTemplates, seed + p);
             const id = `P-${dc + 1}-${z + 1}-${r + 1}-${m + 1}-${p + 1}`;
             const pid = 1000 + (seed * 3 + p) % 60000;
@@ -450,7 +455,7 @@ export function* generatePortCSVBatches(
     for (let z = 0; z < ZONES_PER_DC; z++) {
       for (let r = 0; r < RACKS_PER_ZONE; r++) {
         for (let m = 0; m < MACHINES_PER_RACK; m++) {
-          const seed = dc * 100000 + z * 10000 + r * 1000 + m;
+          const seed = machineSeed(dc, z, r, m);
           // Each machine exposes 2 ports
           for (let p = 0; p < 2; p++) {
             const pd = pick(portDefs, seed + p);
@@ -471,7 +476,6 @@ export function* generatePortCSVBatches(
   }
 }
 
-// Relationship CSV generators
 export function generateDCContainsRouterCSV(): string {
   const rows = ["from,to"];
   for (let dc = 0; dc < NUM_DCS; dc++) {
@@ -509,198 +513,60 @@ export function generateRackHoldsSwitchCSV(): string {
   return rows.join("\n");
 }
 
-export function* generateRackHoldsMachineCSVBatches(
-  batchSize: number
-): Generator<{ csv: string; count: number }> {
-  const header = "from,to";
-  let batch: string[] = [header];
-  let count = 0;
-  for (let dc = 0; dc < NUM_DCS; dc++) {
-    for (let z = 0; z < ZONES_PER_DC; z++) {
-      for (let r = 0; r < RACKS_PER_ZONE; r++) {
-        for (let m = 0; m < MACHINES_PER_RACK; m++) {
-          batch.push(
-            `DC${dc + 1}-Z${z + 1}-RCK-${r + 1},M-${dc + 1}-${z + 1}-${r + 1}-${m + 1}`
-          );
-          count++;
-          if (count % batchSize === 0) {
-            yield { csv: batch.join("\n"), count };
-            batch = [header];
-          }
-        }
-      }
-    }
-  }
-  if (batch.length > 1) yield { csv: batch.join("\n"), count };
+export function* generateRackHoldsMachineCSVBatches(batchSize: number) {
+  yield* batchedRelCSV(batchSize, (dc, z, r, m) => [
+    `DC${dc + 1}-Z${z + 1}-RCK-${r + 1},M-${dc + 1}-${z + 1}-${r + 1}-${m + 1}`,
+  ]);
 }
 
-export function* generateMachineHasIfaceCSVBatches(
-  batchSize: number
-): Generator<{ csv: string; count: number }> {
-  const header = "from,to";
-  let batch: string[] = [header];
-  let count = 0;
-  for (let dc = 0; dc < NUM_DCS; dc++) {
-    for (let z = 0; z < ZONES_PER_DC; z++) {
-      for (let r = 0; r < RACKS_PER_ZONE; r++) {
-        for (let m = 0; m < MACHINES_PER_RACK; m++) {
-          batch.push(
-            `M-${dc + 1}-${z + 1}-${r + 1}-${m + 1},IF-${dc + 1}-${z + 1}-${r + 1}-${m + 1}`
-          );
-          count++;
-          if (count % batchSize === 0) {
-            yield { csv: batch.join("\n"), count };
-            batch = [header];
-          }
-        }
-      }
-    }
-  }
-  if (batch.length > 1) yield { csv: batch.join("\n"), count };
+export function* generateMachineHasIfaceCSVBatches(batchSize: number) {
+  yield* batchedRelCSV(batchSize, (dc, z, r, m) => [
+    `M-${dc + 1}-${z + 1}-${r + 1}-${m + 1},IF-${dc + 1}-${z + 1}-${r + 1}-${m + 1}`,
+  ]);
 }
 
-export function* generateIfaceInNetworkCSVBatches(
-  batchSize: number
-): Generator<{ csv: string; count: number }> {
-  const header = "from,to";
-  let batch: string[] = [header];
-  let count = 0;
-  for (let dc = 0; dc < NUM_DCS; dc++) {
-    for (let z = 0; z < ZONES_PER_DC; z++) {
-      for (let r = 0; r < RACKS_PER_ZONE; r++) {
-        for (let m = 0; m < MACHINES_PER_RACK; m++) {
-          batch.push(
-            `IF-${dc + 1}-${z + 1}-${r + 1}-${m + 1},10.${dc + 1}.${z * 16 + r}.0/24`
-          );
-          count++;
-          if (count % batchSize === 0) {
-            yield { csv: batch.join("\n"), count };
-            batch = [header];
-          }
-        }
-      }
-    }
-  }
-  if (batch.length > 1) yield { csv: batch.join("\n"), count };
+export function* generateIfaceInNetworkCSVBatches(batchSize: number) {
+  yield* batchedRelCSV(batchSize, (dc, z, r, m) => [
+    `IF-${dc + 1}-${z + 1}-${r + 1}-${m + 1},10.${dc + 1}.${z * 16 + r}.0/24`,
+  ]);
 }
 
-export function* generateIfaceHasPortCSVBatches(
-  batchSize: number
-): Generator<{ csv: string; count: number }> {
-  const header = "from,to";
-  let batch: string[] = [header];
-  let count = 0;
-  for (let dc = 0; dc < NUM_DCS; dc++) {
-    for (let z = 0; z < ZONES_PER_DC; z++) {
-      for (let r = 0; r < RACKS_PER_ZONE; r++) {
-        for (let m = 0; m < MACHINES_PER_RACK; m++) {
-          for (let p = 0; p < 2; p++) {
-            batch.push(
-              `IF-${dc + 1}-${z + 1}-${r + 1}-${m + 1},PORT-${dc + 1}-${z + 1}-${r + 1}-${m + 1}-${p + 1}`
-            );
-            count++;
-            if (count % batchSize === 0) {
-              yield { csv: batch.join("\n"), count };
-              batch = [header];
-            }
-          }
-        }
-      }
-    }
-  }
-  if (batch.length > 1) yield { csv: batch.join("\n"), count };
+export function* generateIfaceHasPortCSVBatches(batchSize: number) {
+  yield* batchedRelCSV(batchSize, (dc, z, r, m) =>
+    [0, 1].map((p) =>
+      `IF-${dc + 1}-${z + 1}-${r + 1}-${m + 1},PORT-${dc + 1}-${z + 1}-${r + 1}-${m + 1}-${p + 1}`
+    ),
+  );
 }
 
-export function* generateMachineRunsProcessCSVBatches(
-  batchSize: number
-): Generator<{ csv: string; count: number }> {
-  const header = "from,to";
-  let batch: string[] = [header];
-  let count = 0;
-  for (let dc = 0; dc < NUM_DCS; dc++) {
-    for (let z = 0; z < ZONES_PER_DC; z++) {
-      for (let r = 0; r < RACKS_PER_ZONE; r++) {
-        for (let m = 0; m < MACHINES_PER_RACK; m++) {
-          const seed = dc * 100000 + z * 10000 + r * 1000 + m;
-          const numProcs = 2 + (seed % 2);
-          for (let p = 0; p < numProcs; p++) {
-            batch.push(
-              `M-${dc + 1}-${z + 1}-${r + 1}-${m + 1},P-${dc + 1}-${z + 1}-${r + 1}-${m + 1}-${p + 1}`
-            );
-            count++;
-            if (count % batchSize === 0) {
-              yield { csv: batch.join("\n"), count };
-              batch = [header];
-            }
-          }
-        }
-      }
-    }
-  }
-  if (batch.length > 1) yield { csv: batch.join("\n"), count };
+export function* generateMachineRunsProcessCSVBatches(batchSize: number) {
+  yield* batchedRelCSV(batchSize, (dc, z, r, m) => {
+    const seed = machineSeed(dc, z, r, m);
+    return Array.from({ length: numProcesses(seed) }, (_, p) =>
+      `M-${dc + 1}-${z + 1}-${r + 1}-${m + 1},P-${dc + 1}-${z + 1}-${r + 1}-${m + 1}-${p + 1}`
+    );
+  });
 }
 
-export function* generateProcessUsesVersionCSVBatches(
-  batchSize: number
-): Generator<{ csv: string; count: number }> {
-  const header = "from,to";
-  let batch: string[] = [header];
-  let count = 0;
+export function* generateProcessUsesVersionCSVBatches(batchSize: number) {
   const allVersionIds: string[] = [];
   for (const sw of SOFTWARE_LIST) {
     for (const ver of SOFTWARE_VERSIONS[sw.name]!) {
       allVersionIds.push(`${sw.name}-${ver}`);
     }
   }
-
-  for (let dc = 0; dc < NUM_DCS; dc++) {
-    for (let z = 0; z < ZONES_PER_DC; z++) {
-      for (let r = 0; r < RACKS_PER_ZONE; r++) {
-        for (let m = 0; m < MACHINES_PER_RACK; m++) {
-          const seed = dc * 100000 + z * 10000 + r * 1000 + m;
-          const numProcs = 2 + (seed % 2);
-          for (let p = 0; p < numProcs; p++) {
-            const verId = pick(allVersionIds, seed + p);
-            batch.push(
-              `P-${dc + 1}-${z + 1}-${r + 1}-${m + 1}-${p + 1},${verId}`
-            );
-            count++;
-            if (count % batchSize === 0) {
-              yield { csv: batch.join("\n"), count };
-              batch = [header];
-            }
-          }
-        }
-      }
-    }
-  }
-  if (batch.length > 1) yield { csv: batch.join("\n"), count };
+  yield* batchedRelCSV(batchSize, (dc, z, r, m) => {
+    const seed = machineSeed(dc, z, r, m);
+    return Array.from({ length: numProcesses(seed) }, (_, p) =>
+      `P-${dc + 1}-${z + 1}-${r + 1}-${m + 1}-${p + 1},${pick(allVersionIds, seed + p)}`
+    );
+  });
 }
 
-export function* generateProcessListensPortCSVBatches(
-  batchSize: number
-): Generator<{ csv: string; count: number }> {
-  const header = "from,to";
-  let batch: string[] = [header];
-  let count = 0;
-  for (let dc = 0; dc < NUM_DCS; dc++) {
-    for (let z = 0; z < ZONES_PER_DC; z++) {
-      for (let r = 0; r < RACKS_PER_ZONE; r++) {
-        for (let m = 0; m < MACHINES_PER_RACK; m++) {
-          // First process listens on first port
-          batch.push(
-            `P-${dc + 1}-${z + 1}-${r + 1}-${m + 1}-1,PORT-${dc + 1}-${z + 1}-${r + 1}-${m + 1}-1`
-          );
-          count++;
-          if (count % batchSize === 0) {
-            yield { csv: batch.join("\n"), count };
-            batch = [header];
-          }
-        }
-      }
-    }
-  }
-  if (batch.length > 1) yield { csv: batch.join("\n"), count };
+export function* generateProcessListensPortCSVBatches(batchSize: number) {
+  yield* batchedRelCSV(batchSize, (dc, z, r, m) => [
+    `P-${dc + 1}-${z + 1}-${r + 1}-${m + 1}-1,PORT-${dc + 1}-${z + 1}-${r + 1}-${m + 1}-1`,
+  ]);
 }
 
 export function generateSoftwareHasVersionCSV(): string {

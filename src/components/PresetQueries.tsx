@@ -1,23 +1,13 @@
-import { SAMPLE_QUERIES } from "../db/queries";
+import { SAMPLE_QUERIES, type PresetQuery } from "../db/queries";
 
-export interface PresetQuery {
-  label: string;
-  description: string;
-  query: string;
-  graph?: boolean;
-}
+export type { PresetQuery };
 
-const TABLE_PRESETS: PresetQuery[] = SAMPLE_QUERIES.map((q) => ({
-  label: q.name,
-  description: q.description,
-  query: q.query,
-}));
-
-// Add Graph Statistics query at the end
-TABLE_PRESETS.push({
-  label: "Graph Statistics",
-  description: "Total counts of all node and edge types",
-  query: `MATCH (n:DataCenter) WITH COUNT(n) AS DataCenter
+const TABLE_PRESETS: PresetQuery[] = [
+  ...SAMPLE_QUERIES,
+  {
+    label: "Graph Statistics",
+    description: "Total counts of all node and edge types",
+    query: `MATCH (n:DataCenter) WITH COUNT(n) AS DataCenter
 MATCH (n:Router) WITH DataCenter, COUNT(n) AS Router
 MATCH (n:Rack) WITH DataCenter, Router, COUNT(n) AS Rack
 MATCH (n:Switch) WITH DataCenter, Router, Rack, COUNT(n) AS Switch
@@ -47,7 +37,8 @@ WITH total_nodes,
      DataCenter, Router, Rack, Switch, Network, Machine, Interface_, Software, SoftwareVersion, Process, Port,
      DC_CONTAINS_ROUTER, DC_CONTAINS_RACK, RACK_HOLDS_SWITCH, RACK_HOLDS_MACHINE, MACHINE_HAS_IFACE, IFACE_IN_NETWORK, IFACE_HAS_PORT, MACHINE_RUNS_PROCESS, PROCESS_LISTENS_PORT, PROCESS_USES_VERSION, SOFTWARE_HAS_VERSION, ROUTER_ROUTES_NETWORK
 RETURN total_nodes, total_edges, DataCenter, Router, Rack, Switch, Network, Machine, Interface_, Software, SoftwareVersion, Process, Port, DC_CONTAINS_ROUTER, DC_CONTAINS_RACK, RACK_HOLDS_SWITCH, RACK_HOLDS_MACHINE, MACHINE_HAS_IFACE, IFACE_IN_NETWORK, IFACE_HAS_PORT, MACHINE_RUNS_PROCESS, PROCESS_LISTENS_PORT, PROCESS_USES_VERSION, SOFTWARE_HAS_VERSION, ROUTER_ROUTES_NETWORK`,
-});
+  },
+];
 
 const GRAPH_PRESETS: PresetQuery[] = [
   {
@@ -107,9 +98,7 @@ export default function PresetQueries({ onSelect, disabled }: Props) {
               disabled={disabled}
               className="rounded-lg border border-gray-700 bg-gray-800 p-2.5 text-left transition-colors hover:border-indigo-500 hover:bg-gray-800/80 disabled:opacity-40 cursor-pointer"
             >
-              <p className="text-xs font-medium text-gray-200">
-                {p.label}
-              </p>
+              <p className="text-xs font-medium text-gray-200">{p.label}</p>
               <p className="mt-0.5 text-xs text-gray-500 line-clamp-1">
                 {p.description}
               </p>

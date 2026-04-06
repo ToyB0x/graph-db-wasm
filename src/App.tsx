@@ -1,8 +1,8 @@
 import { useState, useCallback, useEffect } from "react";
 import { initializeDatabase, type DbState } from "./db/init";
 import { queryAsObjects } from "./db";
-import { extractGraphData, hasGraphData, type GraphData } from "./db/graphExtractor";
-import type { PresetQuery } from "./components/PresetQueries";
+import { extractGraphData, hasGraphData, EMPTY_GRAPH } from "./db/graphExtractor";
+import type { PresetQuery } from "./db/queries";
 import SeedProgress from "./components/SeedProgress";
 import QueryEditor from "./components/QueryEditor";
 import PresetQueries from "./components/PresetQueries";
@@ -27,11 +27,7 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
 
   const [viewMode, setViewMode] = useState<ViewMode>("table");
-  const [graphData, setGraphData] = useState<GraphData>({
-    nodes: [],
-    edges: [],
-    truncated: false,
-  });
+  const [graphData, setGraphData] = useState(EMPTY_GRAPH);
 
   useEffect(() => {
     initializeDatabase(setDbState);
@@ -55,8 +51,7 @@ export default function App() {
       setColumns([]);
       setRows([]);
       setQueryTime(null);
-      setGraphData({ nodes: [], edges: [], truncated: false });
-      setViewMode("table");
+      setGraphData(EMPTY_GRAPH);
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setIsRunning(false);
@@ -71,7 +66,6 @@ export default function App() {
     [handleRunQuery],
   );
 
-  const isReady = dbState.status === "ready";
   const hasGraph = hasGraphData(graphData);
 
   return (
@@ -86,12 +80,10 @@ export default function App() {
               {totalEdges.toLocaleString()} edges &middot; ~{estimatedSizeMB} MB
             </p>
           </div>
-          {isReady && (
+          {dbState.status === "ready" && (
             <div className="flex items-center gap-1 text-xs text-gray-400">
               <span className="h-2 w-2 rounded-full bg-green-500" />
-              <span>
-                LadybugDB v{(dbState as { version: string }).version}
-              </span>
+              <span>LadybugDB v{dbState.version}</span>
             </div>
           )}
         </div>
@@ -123,14 +115,14 @@ export default function App() {
           </div>
         )}
 
-        {isReady && (
+        {dbState.status === "ready" && (
           <div className="flex flex-col gap-6">
             <PresetQueries onSelect={handlePreset} disabled={isRunning} />
             <QueryEditor
               value={queryText}
               onChange={setQueryText}
               onRun={handleRunQuery}
-              disabled={!isReady}
+              disabled={false}
               isRunning={isRunning}
             />
 

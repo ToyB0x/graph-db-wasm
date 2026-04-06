@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState, useCallback } from "react";
+import { useRef, useEffect, useState, useMemo } from "react";
 import cytoscape from "cytoscape";
 import type { GraphData, GraphNode } from "../db/graphExtractor";
 
@@ -118,13 +118,17 @@ export default function GraphView({ graphData, queryTime }: Props) {
       cy.destroy();
       cyRef.current = null;
     };
-  }, [graphData, layout]);
+  }, [graphData]);
 
-  const handleLayout = useCallback((name: LayoutName) => {
-    setLayout(name);
-  }, []);
+  useEffect(() => {
+    if (!cyRef.current) return;
+    cyRef.current.layout({ name: layout, animate: false }).run();
+  }, [layout]);
 
-  const usedTypes = [...new Set(graphData.nodes.map((n) => n.label))];
+  const usedTypes = useMemo(
+    () => [...new Set(graphData.nodes.map((n) => n.label))],
+    [graphData],
+  );
 
   return (
     <div className="flex flex-col gap-2">
@@ -145,7 +149,7 @@ export default function GraphView({ graphData, queryTime }: Props) {
           {LAYOUTS.map((l) => (
             <button
               key={l}
-              onClick={() => handleLayout(l)}
+              onClick={() => setLayout(l)}
               className={`rounded px-2 py-0.5 text-xs transition-colors cursor-pointer ${
                 layout === l
                   ? "bg-indigo-600 text-white"
