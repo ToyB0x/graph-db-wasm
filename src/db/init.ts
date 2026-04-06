@@ -22,19 +22,26 @@ async function doInit(
   try {
     onStateChange({
       status: "initializing",
-      progress: { phase: "loading", detail: "Loading WASM module…", pct: 0 },
+      progress: { phase: "loading", detail: "Loading WASM module…", percent: 0 },
     });
 
-    const { initDatabase } = await import("./index");
+    const { initDatabase, getConnection, getFS } = await import("./index");
     await initDatabase();
+
+    const conn = getConnection();
+    const fs = getFS();
 
     onStateChange({
       status: "initializing",
-      progress: { phase: "schema", detail: "Creating schema…", pct: 5 },
+      progress: { phase: "schema", detail: "Creating schema…", percent: 5 },
     });
 
-    const { seedDatabase } = await import("./seed");
-    await seedDatabase((progress) => {
+    const { createSchema, seedData } = await import("./seed");
+    await createSchema(conn, (progress) => {
+      onStateChange({ status: "initializing", progress });
+    });
+
+    await seedData(conn, fs, (progress) => {
       onStateChange({ status: "initializing", progress });
     });
 

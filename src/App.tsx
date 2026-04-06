@@ -8,7 +8,9 @@ import QueryEditor from "./components/QueryEditor";
 import PresetQueries from "./components/PresetQueries";
 import ResultsView from "./components/ResultsView";
 import GraphView from "./components/GraphView";
-import { ESTIMATED_SIZE_MB, TOTAL_MACHINES } from "./db/config";
+import { getTotalCounts } from "./db/factories";
+
+const { totalNodes } = getTotalCounts();
 
 type ViewMode = "table" | "graph";
 
@@ -80,8 +82,7 @@ export default function App() {
             <h1 className="text-xl font-bold">GraphDB WASM Preview</h1>
             <p className="text-xs text-gray-500">
               LadybugDB running in-browser via WebAssembly &middot;{" "}
-              {TOTAL_MACHINES.toLocaleString()} machines &middot; ~
-              {ESTIMATED_SIZE_MB} MB
+              ~{totalNodes.toLocaleString()} nodes
             </p>
           </div>
           {isReady && (
