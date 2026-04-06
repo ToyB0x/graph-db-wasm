@@ -1,0 +1,7 @@
+node_modules
+dist
+*.local
+test-db.mjs
+test-seed.mjs
+public/kuzu_wasm_worker.js
+.playwright-cli/
