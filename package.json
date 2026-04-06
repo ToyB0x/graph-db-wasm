@@ -4,11 +4,13 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
+    "postinstall": "cp node_modules/kuzu-wasm/web/kuzu_wasm_worker.js public/kuzu_wasm_worker.js",
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview"
   },
   "dependencies": {
+    "cytoscape": "^3.33.1",
     "lbug-wasm": "npm:kuzu-wasm@latest",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"

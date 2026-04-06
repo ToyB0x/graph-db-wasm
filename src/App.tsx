@@ -1,18 +1,19 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
+import { initializeDatabase, type DbState } from "./db/init";
+import { queryAsObjects } from "./db";
+import { extractGraphData, hasGraphData, type GraphData } from "./db/graphExtractor";
+import type { PresetQuery } from "./components/PresetQueries";
 import SeedProgress from "./components/SeedProgress";
 import QueryEditor from "./components/QueryEditor";
 import PresetQueries from "./components/PresetQueries";
 import ResultsView from "./components/ResultsView";
-import { initDatabase, queryAsObjects } from "./db";
-import { seedDatabase, type SeedProgress as SeedProgressType } from "./db/seed";
+import GraphView from "./components/GraphView";
 import { ESTIMATED_SIZE_MB, TOTAL_MACHINES } from "./db/config";
 
+type ViewMode = "table" | "graph";
+
 export default function App() {
-  const [seedProgress, setSeedProgress] = useState<SeedProgressType | null>(
-    null,
-  );
-  const [isSeeding, setIsSeeding] = useState(false);
-  const [isReady, setIsReady] = useState(false);
+  const [dbState, setDbState] = useState<DbState>({ status: "idle" });
   const [isRunning, setIsRunning] = useState(false);
 
   const [queryText, setQueryText] = useState(
@@ -23,18 +24,15 @@ export default function App() {
   const [queryTime, setQueryTime] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const handleSeed = useCallback(async () => {
-    setIsSeeding(true);
-    setError(null);
-    try {
-      await initDatabase();
-      await seedDatabase((p) => setSeedProgress({ ...p }));
-      setIsReady(true);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setIsSeeding(false);
-    }
+  const [viewMode, setViewMode] = useState<ViewMode>("table");
+  const [graphData, setGraphData] = useState<GraphData>({
+    nodes: [],
+    edges: [],
+    truncated: false,
+  });
+
+  useEffect(() => {
+    initializeDatabase(setDbState);
   }, []);
 
   const handleRunQuery = useCallback(async (cypher: string) => {
@@ -47,10 +45,16 @@ export default function App() {
       setColumns(result.columns);
       setRows(result.rows);
       setQueryTime(`${elapsed.toFixed(1)} ms`);
+
+      const gd = extractGraphData(result.rows);
+      setGraphData(gd);
+      setViewMode(hasGraphData(gd) ? "graph" : "table");
     } catch (e) {
       setColumns([]);
       setRows([]);
       setQueryTime(null);
+      setGraphData({ nodes: [], edges: [], truncated: false });
+      setViewMode("table");
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setIsRunning(false);
@@ -58,52 +62,117 @@ export default function App() {
   }, []);
 
   const handlePreset = useCallback(
-    (q: string) => {
-      setQueryText(q);
-      handleRunQuery(q);
+    (preset: PresetQuery) => {
+      setQueryText(preset.query);
+      handleRunQuery(preset.query);
     },
     [handleRunQuery],
   );
 
+  const isReady = dbState.status === "ready";
+  const hasGraph = hasGraphData(graphData);
+
   return (
-    <div className="min-h-screen p-6 max-w-6xl mx-auto space-y-6">
-      <header className="space-y-1">
-        <h1 className="text-2xl font-bold text-gray-100">
-          GraphDB WASM Preview
-        </h1>
-        <p className="text-sm text-gray-500">
-          LadybugDB running in-browser via WebAssembly &middot;{" "}
-          {TOTAL_MACHINES.toLocaleString()} machines &middot; ~
-          {ESTIMATED_SIZE_MB} MB
-        </p>
+    <div className="min-h-screen bg-gray-950 text-gray-100">
+      <header className="border-b border-gray-800 px-6 py-4">
+        <div className="flex items-center justify-between max-w-7xl mx-auto">
+          <div>
+            <h1 className="text-xl font-bold">GraphDB WASM Preview</h1>
+            <p className="text-xs text-gray-500">
+              LadybugDB running in-browser via WebAssembly &middot;{" "}
+              {TOTAL_MACHINES.toLocaleString()} machines &middot; ~
+              {ESTIMATED_SIZE_MB} MB
+            </p>
+          </div>
+          {isReady && (
+            <div className="flex items-center gap-1 text-xs text-gray-400">
+              <span className="h-2 w-2 rounded-full bg-green-500" />
+              <span>
+                LadybugDB v{(dbState as { version: string }).version}
+              </span>
+            </div>
+          )}
+        </div>
       </header>
 
-      <SeedProgress
-        progress={seedProgress}
-        isSeeding={isSeeding}
-        onSeed={handleSeed}
-        isReady={isReady}
-      />
+      <main className="max-w-7xl mx-auto px-6 py-6">
+        {dbState.status === "idle" && (
+          <div className="flex justify-center py-20">
+            <div className="h-10 w-10 animate-spin rounded-full border-4 border-gray-700 border-t-indigo-500" />
+          </div>
+        )}
 
-      {isReady && (
-        <div className="space-y-4">
-          <PresetQueries onSelect={handlePreset} disabled={isRunning} />
-          <QueryEditor
-            value={queryText}
-            onChange={setQueryText}
-            onRun={handleRunQuery}
-            disabled={!isReady}
-            isRunning={isRunning}
-          />
-        </div>
-      )}
+        {dbState.status === "initializing" && (
+          <SeedProgress progress={dbState.progress} />
+        )}
 
-      <ResultsView
-        columns={columns}
-        rows={rows}
-        queryTime={queryTime}
-        error={error}
-      />
+        {dbState.status === "error" && (
+          <div className="rounded-lg border border-red-800 bg-red-950 p-6 text-center">
+            <p className="text-lg font-semibold text-red-400">
+              Initialization Failed
+            </p>
+            <p className="mt-2 text-sm text-red-300">{dbState.error}</p>
+            <button
+              onClick={() => window.location.reload()}
+              className="mt-4 rounded-lg bg-red-700 px-4 py-2 text-sm font-medium text-white hover:bg-red-600 cursor-pointer"
+            >
+              Reload
+            </button>
+          </div>
+        )}
+
+        {isReady && (
+          <div className="flex flex-col gap-6">
+            <PresetQueries onSelect={handlePreset} disabled={isRunning} />
+            <QueryEditor
+              value={queryText}
+              onChange={setQueryText}
+              onRun={handleRunQuery}
+              disabled={!isReady}
+              isRunning={isRunning}
+            />
+
+            {(columns.length > 0 || error) && (
+              <div className="space-y-2">
+                <div className="flex gap-1 border-b border-gray-700">
+                  <button
+                    onClick={() => setViewMode("table")}
+                    className={`px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer ${
+                      viewMode === "table"
+                        ? "text-indigo-400 border-b-2 border-indigo-400"
+                        : "text-gray-500 hover:text-gray-300"
+                    }`}
+                  >
+                    Table
+                  </button>
+                  <button
+                    onClick={() => setViewMode("graph")}
+                    disabled={!hasGraph}
+                    className={`px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed ${
+                      viewMode === "graph"
+                        ? "text-emerald-400 border-b-2 border-emerald-400"
+                        : "text-gray-500 hover:text-gray-300"
+                    }`}
+                  >
+                    Graph
+                  </button>
+                </div>
+
+                {viewMode === "table" ? (
+                  <ResultsView
+                    columns={columns}
+                    rows={rows}
+                    queryTime={queryTime}
+                    error={error}
+                  />
+                ) : (
+                  <GraphView graphData={graphData} queryTime={queryTime} />
+                )}
+              </div>
+            )}
+          </div>
+        )}
+      </main>
     </div>
   );
 }

@@ -65,6 +65,11 @@ export default function ResultsView({ columns, rows, queryTime, error }: Props) 
 
 function formatCell(value: unknown): string {
   if (value === null || value === undefined) return "NULL";
-  if (typeof value === "object") return JSON.stringify(value);
+  if (typeof value === "bigint") return value.toString();
+  if (typeof value === "object") {
+    return JSON.stringify(value, (_k, v) =>
+      typeof v === "bigint" ? v.toString() : v,
+    );
+  }
   return String(value);
 }
