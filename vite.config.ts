@@ -6,7 +6,7 @@ export default defineConfig({
   base: process.env.GITHUB_PAGES ? "/graph-db-wasm/" : "/",
   plugins: [react(), tailwindcss()],
   optimizeDeps: {
-    exclude: ["lbug-wasm"],
+    exclude: ["kuzu-wasm"],
   },
   server: {
     headers: {

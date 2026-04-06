@@ -1,6 +1,6 @@
 // Database initialization for LadybugDB WASM (in-memory, browser)
 
-import lbug from "lbug-wasm";
+import lbug from "kuzu-wasm";
 
 let db: InstanceType<typeof lbug.Database> | null = null;
 let conn: InstanceType<typeof lbug.Connection> | null = null;

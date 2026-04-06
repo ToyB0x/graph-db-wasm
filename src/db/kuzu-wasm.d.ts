@@ -1,4 +1,4 @@
-declare module "lbug-wasm" {
+declare module "kuzu-wasm" {
   class Database {
     constructor(
       databasePath: string,
@@ -50,7 +50,7 @@ declare module "lbug-wasm" {
     readDir(path: string): Promise<string[]>;
   }
 
-  const lbug: {
+  const kuzu: {
     init(): Promise<void>;
     close(): Promise<void>;
     getVersion(): Promise<string>;
@@ -62,6 +62,6 @@ declare module "lbug-wasm" {
     FS: FS;
   };
 
-  export default lbug;
+  export default kuzu;
   export type { Database, Connection, QueryResult, PreparedStatement, FS };
 }
