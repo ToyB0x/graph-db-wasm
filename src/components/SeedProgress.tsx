@@ -13,7 +13,7 @@ export default function SeedProgress({ progress }: Props) {
           <span className="text-gray-300">
             {progress.phase}: {progress.detail}
           </span>
-          <span className="text-indigo-400 font-mono">{progress.percent}%</span>
+          <span className="text-indigo-400 font-mono">{Math.ceil(progress.percent * 10) / 10}%</span>
         </div>
         <div className="h-2 w-full rounded-full bg-gray-800 overflow-hidden">
           <div
