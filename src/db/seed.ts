@@ -66,6 +66,8 @@ export async function seedDatabase(onProgress: ProgressCb): Promise<void> {
   // ---- Phase 2: Small reference data (direct INSERT) ----
   onProgress({ phase: "reference", detail: "Inserting reference data…", pct: 5 });
 
+  await mkdirVFS("/data");
+
   const machineTypes = generateMachineTypes();
   for (const mt of machineTypes) {
     await query(
@@ -147,8 +149,6 @@ export async function seedDatabase(onProgress: ProgressCb): Promise<void> {
     detail: `Generating ${TOTAL_MACHINES.toLocaleString()} machines…`,
     pct: 10,
   });
-
-  await mkdirVFS("/data");
 
   // We process rack by rack and accumulate CSV chunks to write in batches
   const BATCH_SIZE = 10; // racks per batch write
