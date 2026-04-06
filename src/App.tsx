@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { initializeDatabase, type DbState } from "./db/init";
-import type { Connection } from "@ladybugdb/wasm-core";
+import type { Connection } from "lbug-wasm";
 import type { SampleQuery } from "./db/queries";
 import QueryEditor from "./components/QueryEditor";
 import ResultsTable from "./components/ResultsTable";

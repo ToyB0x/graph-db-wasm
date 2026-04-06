@@ -1,2 +1,3 @@
 node_modules/
 dist/
+public/kuzu_wasm_worker.js

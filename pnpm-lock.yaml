@@ -8,9 +8,9 @@ importers:
 
   .:
     dependencies:
-      '@ladybugdb/wasm-core':
-        specifier: 0.15.3
-        version: 0.15.3
+      lbug-wasm:
+        specifier: npm:kuzu-wasm@0.11.3
+        version: kuzu-wasm@0.11.3
       react:
         specifier: ^19.1.0
         version: 19.2.4
@@ -296,9 +296,6 @@ packages:
 
   '@jridgewell/trace-mapping@0.3.31':
     resolution: {integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==}
-
-  '@ladybugdb/wasm-core@0.15.3':
-    resolution: {integrity: sha512-LfUYBmY8G91zo/HhX7zlM/Tf3VFnQ1SXIJlAbgfpzf5Eou1yIuP3E9T6jRZWN3jp070hOnbckNxgeWLPDisWMA==}
 
   '@rolldown/pluginutils@1.0.0-beta.27':
     resolution: {integrity: sha512-+d0F4MKMCbeVUJwG96uQ4SgAznZNSq93I3V+9NHA4OpvqG8mRCpGdKmK8l/dl02h2CCDHwW2FqilnTyDcAnqjA==}
@@ -661,6 +658,10 @@ packages:
     resolution: {integrity: sha512-XmOWe7eyHYH14cLdVPoyg+GOH3rYX++KpzrylJwSW98t3Nk+U8XOl8FWKOgwtzdb8lXGf6zYwDUzeHMWfxasyg==}
     engines: {node: '>=6'}
     hasBin: true
+
+  kuzu-wasm@0.11.3:
+    resolution: {integrity: sha512-+bLOqXgYZJJ2dHJG1y9LTLyb9ZB73eLxErRZahZz2rPokfIdyLaktTJFzJH7wX39hgyukKn8QxeRNobH6gl27g==}
+    deprecated: Package no longer supported. Contact Support at https://www.npmjs.com/support for more info.
 
   lightningcss-android-arm64@1.32.0:
     resolution: {integrity: sha512-YK7/ClTt4kAK0vo6w3X+Pnm0D2cf2vPHbhOXdoNti1Ga0al1P4TBZhwjATvjNwLEBCnKvjJc2jQgHXH0NEwlAg==}
@@ -1082,14 +1083,6 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
 
-  '@ladybugdb/wasm-core@0.15.3':
-    dependencies:
-      threads: 1.7.0
-      tiny-worker: 2.3.0
-      uuid: 11.1.0
-    transitivePeerDependencies:
-      - supports-color
-
   '@rolldown/pluginutils@1.0.0-beta.27': {}
 
   '@rollup/rollup-android-arm-eabi@4.60.1':
@@ -1362,6 +1355,14 @@ snapshots:
   jsesc@3.1.0: {}
 
   json5@2.2.3: {}
+
+  kuzu-wasm@0.11.3:
+    dependencies:
+      threads: 1.7.0
+      tiny-worker: 2.3.0
+      uuid: 11.1.0
+    transitivePeerDependencies:
+      - supports-color
 
   lightningcss-android-arm64@1.32.0:
     optional: true

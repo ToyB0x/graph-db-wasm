@@ -15,10 +15,11 @@ ORDER BY dc.name`,
   {
     name: "Machines per Rack (DC1-Z1)",
     description: "Count machines in each rack of zone 1 in DC1",
-    query: `MATCH (r:Rack)-[:RACK_HOLDS_MACHINE]->(m:Machine)
-WHERE r.name STARTS WITH 'DC1-Z1'
+    query: `MATCH (r:Rack) WHERE r.name STARTS WITH 'DC1-Z1'
+WITH r
+MATCH (r)-[:RACK_HOLDS_MACHINE]->(m:Machine)
 RETURN r.name AS rack, COUNT(m) AS machine_count
-ORDER BY r.name
+ORDER BY rack
 LIMIT 20`,
   },
   {

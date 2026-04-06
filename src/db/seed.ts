@@ -1,5 +1,5 @@
-import type { Connection } from "@ladybugdb/wasm-core";
-import type { LbugFS } from "./lbug.d";
+import type { Connection } from "lbug-wasm";
+import type { FS as LbugFS } from "lbug-wasm";
 import { NODE_TABLE_STATEMENTS, REL_TABLE_STATEMENTS } from "./schema";
 import {
   generateDataCenterCSV,
@@ -146,7 +146,12 @@ export async function seedData(
   };
 
   // Small tables — single CSV
-  await fs.mkdir("/data");
+  try {
+    await fs.mkdir("/data");
+  } catch {
+    // Directory may already exist or mkdir may not be available;
+    // files can still be written to root paths.
+  }
 
   report("Generating data centers...");
   await writeAndCopy(conn, fs, generateDataCenterCSV(), "DataCenter", "/data/dc.csv", false);

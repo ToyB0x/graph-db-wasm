@@ -1,5 +1,5 @@
-import type { Database, Connection } from "@ladybugdb/wasm-core";
-import type { LbugModule, LbugFS } from "./lbug.d";
+import type { Database, Connection } from "lbug-wasm";
+import type { FS } from "lbug-wasm";
 import { createSchema, seedData, type SeedProgress } from "./seed";
 
 export type DbState =
@@ -8,7 +8,18 @@ export type DbState =
   | { status: "ready"; conn: Connection; db: Database; version: string }
   | { status: "error"; error: string };
 
+// Guard against double-initialization (React StrictMode calls useEffect twice)
+let initPromise: Promise<{ conn: Connection; db: Database }> | null = null;
+
 export async function initializeDatabase(
+  onStateChange: (state: DbState) => void
+): Promise<{ conn: Connection; db: Database }> {
+  if (initPromise) return initPromise;
+  initPromise = doInit(onStateChange);
+  return initPromise;
+}
+
+async function doInit(
   onStateChange: (state: DbState) => void
 ): Promise<{ conn: Connection; db: Database }> {
   try {
@@ -17,21 +28,27 @@ export async function initializeDatabase(
       progress: { phase: "Loading", detail: "Loading WASM module...", percent: 0 },
     });
 
-    // Dynamic import to handle WASM loading
-    const lbug = (await import("@ladybugdb/wasm-core")).default as unknown as LbugModule;
+    const lbug = (await import("lbug-wasm")).default;
 
     onStateChange({
       status: "initializing",
       progress: { phase: "Loading", detail: "Initializing database...", percent: 5 },
     });
 
-    await lbug.init();
-    const version = await lbug.getVersion();
+    // Set worker path — the worker file is served from public/
+    lbug.setWorkerPath("/kuzu_wasm_worker.js");
 
-    // 256MB buffer pool for ~100MB dataset
-    const db = new lbug.Database(":memory:", 256 * 1024 * 1024);
+    const db = new lbug.Database(":memory:", 1 << 28 /* 256 MB */);
+    await db.init();
     const conn = new lbug.Connection(db);
     await conn.init();
+
+    let version: string;
+    try {
+      version = await lbug.getVersion();
+    } catch {
+      version = "unknown";
+    }
 
     // Create schema
     onStateChange({
@@ -46,7 +63,7 @@ export async function initializeDatabase(
     });
 
     // Seed data
-    const fs: LbugFS = new (lbug.FS as unknown as new () => LbugFS)();
+    const fs = lbug.FS as FS;
     await seedData(conn, fs, (progress) => {
       onStateChange({
         status: "initializing",

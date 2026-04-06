@@ -1,32 +1,67 @@
-// Override FS type since the package d.ts marks methods as static+sync
-// but the actual implementation is instance+async.
-import type { Database, Connection, QueryResult, PreparedStatement } from "@ladybugdb/wasm-core";
+declare module "lbug-wasm" {
+  class Database {
+    constructor(
+      databasePath: string,
+      bufferPoolSize?: number,
+      maxNumThreads?: number,
+      enableCompression?: boolean,
+      readOnly?: boolean,
+    );
+    init(): Promise<void>;
+    close(): Promise<void>;
+  }
 
-export interface LbugFS {
-  writeFile(path: string, data: string | ArrayBuffer): Promise<void>;
-  readFile(path: string): Promise<Uint8Array>;
-  mkdir(path: string): Promise<void>;
-  unlink(path: string): Promise<void>;
-  rmdir(path: string): Promise<void>;
-  readDir(path: string): Promise<string[]>;
-  stat(path: string): Promise<Record<string, unknown>>;
-  rename(oldPath: string, newPath: string): Promise<void>;
-  mountIdbfs(path: string): Promise<void>;
-  unmount(path: string): Promise<void>;
-  syncfs(populate: boolean): Promise<void>;
+  class Connection {
+    constructor(database: Database, numThreads?: number | null);
+    init(): Promise<void>;
+    query(statement: string): Promise<QueryResult>;
+    close(): Promise<void>;
+  }
+
+  class PreparedStatement {
+    isSuccess(): boolean;
+    getErrorMessage(): Promise<string>;
+  }
+
+  class QueryResult {
+    isSuccess(): boolean;
+    getErrorMessage(): Promise<string>;
+    getColumnNames(): Promise<string[]>;
+    getColumnTypes(): Promise<string[]>;
+    getNumColumns(): Promise<number>;
+    getNumTuples(): Promise<number>;
+    getQuerySummary(): Promise<{ executionTime: number; compilingTime: number }>;
+    hasNext(): boolean;
+    getNext(): Promise<unknown[]>;
+    getAllRows(): Promise<unknown[][]>;
+    getAllObjects(): Promise<Record<string, unknown>[]>;
+    resetIterator(): Promise<void>;
+    close(): Promise<void>;
+  }
+
+  interface FS {
+    readFile(path: string): Promise<Buffer>;
+    writeFile(path: string, data: string | Buffer): Promise<void>;
+    mkdir(path: string): Promise<void>;
+    unlink(path: string): Promise<void>;
+    rename(oldPath: string, newPath: string): Promise<void>;
+    rmdir(path: string): Promise<void>;
+    stat(path: string): Promise<Record<string, unknown>>;
+    readDir(path: string): Promise<string[]>;
+  }
+
+  const lbug: {
+    init(): Promise<void>;
+    close(): Promise<void>;
+    getVersion(): Promise<string>;
+    setWorkerPath(workerPath: string): void;
+    Database: typeof Database;
+    Connection: typeof Connection;
+    PreparedStatement: typeof PreparedStatement;
+    QueryResult: typeof QueryResult;
+    FS: FS;
+  };
+
+  export default lbug;
+  export type { Database, Connection, QueryResult, PreparedStatement, FS };
 }
-
-export interface LbugModule {
-  init(): Promise<void>;
-  getVersion(): Promise<string>;
-  getStorageVersion(): Promise<bigint>;
-  setWorkerPath(workerPath: string): void;
-  close(): Promise<void>;
-  Database: typeof Database;
-  Connection: typeof Connection;
-  PreparedStatement: typeof PreparedStatement;
-  QueryResult: typeof QueryResult;
-  FS: new () => LbugFS;
-}
-
-export type { Database, Connection, QueryResult, PreparedStatement };
