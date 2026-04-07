@@ -1,4 +1,4 @@
-# GraphDB WASM Preview
+# GraphDB with WASM
 
 A browser-based real-time graph database query preview app powered by [LadybugDB](https://ladybugdb.com/) (WASM).
 
