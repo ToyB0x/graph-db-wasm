@@ -8,3 +8,4 @@ public/kuzu_wasm_worker.js
 public/coi-serviceworker.js
 .vite/
 tsconfig.tsbuildinfo
+.DS_Store
