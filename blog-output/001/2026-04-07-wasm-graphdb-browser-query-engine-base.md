@@ -1,5 +1,5 @@
 ---
-title: "WASM×グラフDB — ブラウザ完結型クエリエンジンの可能性と実装"
+title: "WASM×グラフDB — ブラウザで動くグラフデータベース"
 emoji: "🕸️"
 type: "tech"
 topics: ["graphdb", "wasm", "react", "typescript", "kuzu"]
