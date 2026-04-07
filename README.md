@@ -4,7 +4,7 @@ A browser-based real-time graph database query preview app powered by [LadybugDB
 
 Generates and queries ~100MB of network infrastructure graph data entirely in the browser — no server required.
 
-![Graph visualization with breadthfirst layout](public/og-image.png)
+![Graph visualization with breadthfirst layout](blog-output/001/images/02-graph-visualization.png)
 
 **[Live Demo →](https://toyb0x.github.io/graph-db-wasm/)**
 
